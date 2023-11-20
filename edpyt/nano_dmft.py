@@ -4,6 +4,8 @@ from edpyt.integrate_gf import matsum_gf as integrate_gf
 from edpyt.observs import get_occupation
 # from edpyt.dmft import _DMFT, adjust_mu
 
+nax = np.newaxis
+
 
 def _get_sigma_method(comm):
     if comm is not None:
@@ -75,17 +77,29 @@ class Gfloc:
 
     def __call__(self, z):
         """Interacting Green's function."""
-        z = np.atleast_1d(z)
-        sigma = self.get_sigma(z)
-        it = np.nditer([sigma, z, None], flags=['external_loop'], order='F')
-        with it:
-            for sigma_, z_, out in it:
-                x = self.free(z_[0], inverse=True)
-                x.flat[::(self.n+1)] -= sigma_[self.idx_inv]
-                out[self.idx_neq,...] = np.linalg.inv(x).diagonal()[self.idx_neq]
-            return it.operands[2][self.idx_neq,...]
-                # out[self.idx_world,...] = np.linalg.inv(x).diagonal()[self.idx_neq]
-            # return it.operands[2][self.idx_world,...]
+
+        cs = 50  # chunk size
+        nc = len(z) // cs  # number of chunks
+        result = []
+
+        n2 = self.n * self.n
+
+        for i in range(nc):
+            start = i * cs
+            end = (i + 1) * cs
+            z_chunk = z[start:end]
+
+            sigma = self.get_sigma(z_chunk).T  # cs x n
+            x = self.free(z_chunk, inverse=True)  # cs x n x n
+            x_flat = x.reshape(cs, n2)  # cs x n^2
+            x_flat[:, ::(self.n + 1)] -= sigma
+            x = x_flat.reshape(cs, self.n, self.n)  # cs x n x n
+            inv_diagonal = np.linalg.inv(x).diagonal(0, 1, 2)  # cs x n
+            result.append(inv_diagonal[:, self.idx_neq])
+
+        result = np.array(result)  # nc x cs x n
+
+        return result.reshape(len(z), self.n).T  # len(z) x n
 
     def update(self, mu):
         """Update chemical potential."""
@@ -102,17 +116,10 @@ class Gfloc:
         """Hybridization."""
         #                                       -1
         # Delta(z) = z+mu - Sigma(z) - ( G (z) )
-        #                                 ii
+        #
         z = np.atleast_1d(z)
         weiss = self.Weiss(z)
-        ndim = weiss.ndim-1
-        it = np.nditer([self.ed, weiss, z, None], 
-                        op_axes=[[0]+[-1]*ndim,None,[-1]*ndim+[0],None], 
-                        flags=['external_loop'], order='F')
-        with it:
-            for ed, weiss, z, out in it:
-                out[...] = z+self.mu-ed-weiss
-            return it.operands[3]
+        return (z[:, nax] + self.mu - self.ed - weiss.T).T
 
     def Weiss(self, z):
         """Weiss field."""
@@ -126,8 +133,9 @@ class Gfloc:
         """Non-interacting green's function."""
         #                                       -1
         #  g (z) = ((z + mu)*S - H - Hybrid(z))
-        #   0      
-        g0_inv = (z+self.mu)*self.S-self.H-self.Hybrid(z)
+        #   0
+        z_b = z[:, nax, nax]  # for broadcasting
+        g0_inv = (z_b + self.mu) * self.S - self.H - self.Hybrid(z)
         if inverse:
             return g0_inv
         return np.linalg.inv(g0_inv)
@@ -156,9 +164,20 @@ class Gfimp:
     def __init__(self, gfimp) -> None:
         self.gfimp = gfimp
 
-    def __getattr__(self, name):
-        """Default is to return attribute of first impurity."""
-        return getattr(self.gfimp[0], name)
+    @property
+    def nmats(self):
+        if hasattr(self, "gfimp") and self.gfimp:
+            return self.gfimp[0].nmats
+
+    @property
+    def beta(self):
+        if hasattr(self, "gfimp") and self.gfimp:
+            return self.gfimp[0].beta
+
+    @property
+    def x(self):
+        if hasattr(self, "gfimp") and self.gfimp:
+            return self.gfimp[0].x
 
     def reset_bath(self):
         for gf in self:

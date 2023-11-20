@@ -102,9 +102,20 @@ class Gfimp:
             adjust_neig  # adjust # of eigenvalues to solve after each solution.
         )
 
-    def __getattr__(self, name):
-        """Search in Delta for attribute."""
-        return getattr(self.Delta, name)
+    @property
+    def nmats(self):
+        if hasattr(self, "Delta"):
+            return self.Delta.nmats
+
+    @property
+    def beta(self):
+        if hasattr(self, "Delta"):
+            return self.Delta.beta
+
+    @property
+    def x(self):
+        if hasattr(self, "Delta"):
+            return self.Delta.x
 
     def reset_bath(self):
         self.Delta.reset_bath()
@@ -507,7 +518,7 @@ class DMFT:
         if eps < self.tol:
             raise Converged("Converged!")
         self.it += 1
-        if self.it > self.max_iter:
+        if self.it >= self.max_iter:
             raise FailedToConverge("Failed to converge!")
         return delta_new
 
@@ -543,7 +554,14 @@ class DMFT:
         the quantity being mixed is the hybridisation function
 
         """
-        if mixing_method == "linear":
-            self.solve_with_linear_mixing(delta, **kwargs)
-        elif mixing_method == "broyden":
-            self.solve_with_broyden_mixing(delta, **kwargs)
+        try:
+            if mixing_method == "linear":
+                self.solve_with_linear_mixing(delta, **kwargs)
+            elif mixing_method == "broyden":
+                self.solve_with_broyden_mixing(delta, **kwargs)
+        except Converged:
+            pass
+        except FailedToConverge as err:
+            print(err)
+        # finally:
+        #     np.save("data_DELTA_DMFT.npy", self.delta)
