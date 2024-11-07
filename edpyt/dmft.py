@@ -10,6 +10,7 @@ from edpyt.espace import adjust_neigsector, build_espace, screen_espace
 from edpyt.fit_cg import _delta, fit_hybrid, get_initial_bath
 from edpyt.gf_lanczos import build_gf_lanczos
 from edpyt.integrate_gf import integrate_gf
+from edpyt.pprint import pprint
 
 
 class Converged(Exception):
@@ -504,7 +505,7 @@ class DMFT:
         return eps
 
     def __call__(self, delta):
-        print(f"Iteration : {self.it:2}", flush=True)
+        pprint(f"Iteration : {self.it:2}")
 
         self.delta = delta
         non_causal = delta.imag > 0  # Ensures that the imaginary part is negative
@@ -519,7 +520,7 @@ class DMFT:
                 f"Relative Error : {eps:.5f}",
             ]
         )
-        print(message, flush=True)
+        pprint(message)
 
         # Conditionally store delta, Sigma, and gfloc if storage is enabled
         if self.store_iterations:

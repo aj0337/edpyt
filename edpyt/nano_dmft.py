@@ -1,8 +1,13 @@
 import numpy as np
+
+from edpyt.dmft import Gfimp as SingleGfimp
 from edpyt.integrate_gf import matsum_gf as integrate_gf
+from edpyt.mpi import COMM, RANK, SIZE
 from edpyt.observs import get_occupation
 
 # from edpyt.dmft import _DMFT, adjust_mu
+
+nax = np.newaxis
 
 
 def _get_sigma_method(comm):
@@ -20,6 +25,7 @@ def _get_sigma_method(comm):
             shape = list(sigma_loc.shape)
             shape[0] *= comm.size
             return sigma.reshape(shape)
+
     else:
 
         def wrap(self, z):
@@ -41,6 +47,7 @@ def _get_occps_method(comm):
             shape = list(occps_loc.shape)
             shape[0] *= self.comm.size
             return np.squeeze(occps.reshape(shape)[self.idx_inv, ...])
+
     else:
 
         def wrap(self, mu):
@@ -76,7 +83,7 @@ class Gfloc:
         self.S = S
         self.Hybrid = Hybrid
         self.idx_world = _get_idx_world(comm, len(idx_neq))
-        self.idx_neq = idx_neq[self.idx_world]  # _get_idx_world(comm, len(idx_neq))]
+        self.idx_neq = idx_neq[self.idx_world]
         self.idx_inv = idx_inv
         self.comm = comm
         self.get_sigma = _get_sigma_method(comm).__get__(self)
@@ -88,17 +95,29 @@ class Gfloc:
 
     def __call__(self, z):
         """Interacting Green's function."""
-        z = np.atleast_1d(z)
-        sigma = self.get_sigma(z)
-        it = np.nditer([sigma, z, None], flags=["external_loop"], order="F")
-        with it:
-            for sigma_, z_, out in it:
-                x = self.free(z_[0], inverse=True)
-                x.flat[:: (self.n + 1)] -= sigma_[self.idx_inv]
-                out[self.idx_neq, ...] = np.linalg.inv(x).diagonal()[self.idx_neq]
-            return it.operands[2][self.idx_neq, ...]
-            # out[self.idx_world,...] = np.linalg.inv(x).diagonal()[self.idx_neq]
-            # return it.operands[2][self.idx_world,...]
+
+        cs = 50  # chunk size
+        nc = len(z) // cs  # number of chunks
+        result = []
+
+        n2 = self.n * self.n
+
+        for i in range(nc):
+            start = i * cs
+            end = (i + 1) * cs
+            z_chunk = z[start:end]
+
+            sigma = self.get_sigma(z_chunk).T  # cs x n
+            x = self.free(z_chunk, inverse=True)  # cs x n x n
+            x_flat = x.reshape(cs, n2)  # cs x n^2
+            x_flat[:, :: (self.n + 1)] -= sigma
+            x = x_flat.reshape(cs, self.n, self.n)  # cs x n x n
+            inv_diagonal = np.linalg.inv(x).diagonal(0, 1, 2)  # cs x n
+            result.append(inv_diagonal[:, self.idx_neq])
+
+        result = np.array(result)  # nc x cs x n
+
+        return result.reshape(len(z), self.n).T  # len(z) x n
 
     def update(self, mu):
         """Update chemical potential."""
@@ -115,22 +134,10 @@ class Gfloc:
         """Hybridization."""
         #                                       -1
         # Delta(z) = z+mu - Sigma(z) - ( G (z) )
-        #                                 ii
+        #
         z = np.atleast_1d(z)
         weiss = self.Weiss(z)
-        ndim = weiss.ndim - 1
-        it = (
-            np.nditer(
-                [self.ed, weiss, z, None],
-                op_axes=[[0] + [-1] * ndim, None, [-1] * ndim + [0], None],
-                flags=["external_loop"],
-                order="F",
-            ),
-        )
-        with it:
-            for ed, weiss, z, out in it:
-                out[...] = z + self.mu - ed - weiss
-            return it.operands[3]
+        return (z[:, nax] + self.mu - self.ed - weiss.T).T
 
     def Weiss(self, z):
         """Weiss field."""
@@ -145,7 +152,8 @@ class Gfloc:
         #                                       -1
         #  g (z) = ((z + mu)*S - H - Hybrid(z))
         #   0
-        g0_inv = (z + self.mu) * self.S - self.H - self.Hybrid(z)
+        z_b = z[:, nax, nax]  # for broadcasting
+        g0_inv = (z_b + self.mu) * self.S - self.H - self.Hybrid(z)
         if inverse:
             return g0_inv
         return np.linalg.inv(g0_inv)
@@ -170,7 +178,7 @@ class Gfloc:
 
 
 class Gfimp:
-    def __init__(self, gfimp) -> None:
+    def __init__(self, gfimp: list[SingleGfimp]) -> None:
         self.gfimp = gfimp
 
     @property
@@ -208,16 +216,59 @@ class Gfimp:
 
     def fit(self, delta):
         """Fit discrete bath."""
-        for i, gf in enumerate(self):
+
+        start, end = self._get_chunk_indices()
+        chunk = self[start:end]
+        print(RANK, len(chunk))
+        for i, gf in enumerate(chunk, start):
             gf.fit(delta[i])
+
+        all_x = np.concatenate(
+            COMM.allgather([impurity.x for impurity in chunk]),
+            axis=0,
+        )
+
+        all_H = np.concatenate(
+            COMM.allgather([impurity.H for impurity in chunk]),
+            axis=0,
+        )
+
+        for i, impurity in enumerate(self):
+            impurity.Delta.x = all_x[i]
+            impurity.H = all_H[i]
 
     def Sigma(self, z):
         """Correlated self-energy."""
         return np.stack([gf.Sigma(z) for gf in self])
 
     def solve(self):
-        for gf in self:
-            gf.solve()
+        """Generate Green's functions for impurities."""
+
+        start, end = self._get_chunk_indices()
+        chunk = self[start:end]
+
+        for impurity in chunk:
+            impurity.solve()
+
+        all_gf = np.concatenate(
+            COMM.allgather([impurity.gf for impurity in chunk]),
+            axis=0,
+        )
+
+        all_espace = np.concatenate(
+            COMM.allgather([impurity.espace for impurity in chunk]),
+            axis=0,
+        )
+
+        all_egs = np.concatenate(
+            COMM.allgather([impurity.egs for impurity in chunk]),
+            axis=0,
+        )
+
+        for i, impurity in enumerate(self):
+            impurity.gf = all_gf[i]
+            impurity.espace = all_espace[i]
+            impurity.egs = all_egs[i]
 
     def spin_symmetrize(self):
         for gf in self:
@@ -232,7 +283,20 @@ class Gfimp:
             )
         return nup - ndw
 
-    def __getitem__(self, i):
+    def _get_chunk_indices(self) -> tuple[int, int]:
+        """Return (start, end) chunk indices.
+
+        Returns
+        -------
+        `tuple[int, int]`
+            The start and end indices of the impurities chunk.
+        """
+        chunk_size = len(self) // SIZE
+        start = RANK * chunk_size
+        end = start + chunk_size if RANK < SIZE - 1 else len(self)
+        return start, end
+
+    def __getitem__(self, i: int) -> SingleGfimp:
         return self.gfimp[i]
 
     def __len__(self):
