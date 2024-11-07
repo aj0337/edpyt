@@ -429,6 +429,7 @@ class DMFT:
         alpha: float = 0.0,
         store_last_n: int = 5,  # Number of last iterations to store
         store_iterations: bool = False,  # Flag to enable/disable storing of last n iterations
+        egrid=None,
     ):
         self.gfimp = gfimp
         self.gfloc = gfloc
@@ -442,7 +443,8 @@ class DMFT:
         self.to_adjust_mu = adjust_mu
         self.weights = wn**-alpha
         self.store_last_n = store_last_n
-        self.store_iterations = store_iterations  # Enable/disable storage
+        self.store_iterations = store_iterations
+        self.egrid = egrid
 
         # Initialize storage lists, only if storage is enabled
         if self.store_iterations:
@@ -531,10 +533,10 @@ class DMFT:
 
             self.deltas.append(delta.copy())
             self.sigmas.append(
-                self.gfimp.Sigma(self.z).copy()
+                self.gfimp.Sigma(self.egrid).copy()
             )  # Assuming Sigma is updated within gfimp
             self.gflocs.append(
-                self.gfloc(self.z).copy()
+                self.gfloc(self.egrid).copy()
             )  # Assuming gfloc can be deep-copied
 
         if eps < self.tol:
