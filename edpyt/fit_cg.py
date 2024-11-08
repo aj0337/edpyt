@@ -1,7 +1,6 @@
 import numpy as np
-from scipy.optimize import fmin_cg
 from numba import guvectorize, njit
-
+from scipy.optimize import minimize
 
 """Look at DCore github for example codes."""
 
@@ -76,7 +75,9 @@ def fit_hybrid(z, p, vals_true):
     ddelta = DDelta(z, p.size)
     chi2 = Chi2(delta, vals_true)
     dchi2 = dChi2(delta, ddelta, vals_true)
-    p[:] = fmin_cg(chi2, p, dchi2, disp=False)
+
+    res = minimize(chi2, p, jac=dchi2, method="L-BFGS-B", options={"disp": False})
+    p[:] = res.x
 
 
 def get_initial_bath(*, p=None, nbath=None, bandwidth=2.0):
@@ -120,9 +121,10 @@ def get_initial_bath(*, p=None, nbath=None, bandwidth=2.0):
 
 
 if __name__ == "__main__":
-    from matplotlib import pyplot as plt
     import logging
     import time
+
+    from matplotlib import pyplot as plt
 
     logging.basicConfig(filename="timing_fit_cg.txt", filemode="a", level="INFO")
     z = 1.0j * (2 * np.arange(3000) + 1) * np.pi / 70.0
