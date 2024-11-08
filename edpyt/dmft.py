@@ -1,5 +1,6 @@
 from warnings import warn
 
+import time
 import numpy as np
 from scipy.optimize import broyden1, linearmixing, root_scalar
 
@@ -31,6 +32,8 @@ class Delta:
         self.x = np.empty(2 * nbath)
         self.reset_bath()
 
+        self.z_mats = 1.0j * (2 * np.arange(self.nmats) + 1) * np.pi / self.beta
+
     def reset_bath(self):
         get_initial_bath(p=self.x)
 
@@ -43,7 +46,7 @@ class Delta:
         return self.x[self.nbath :]
 
     def fit(self, delta):
-        fit_hybrid(self.x, self.nmats, delta, self.beta)
+        fit_hybrid(self.z_mats, self.x, delta)
 
     def __call__(self, z):
         return _delta(self.x, z)
@@ -477,11 +480,32 @@ class DMFT:
         return np.sum(occp), delta_new
 
     def dmft_step(self):
-        """Perform a DMFT self-consistency step."""
-        self.gfimp.fit(self.delta)  # at Matsubara frequencies
+        """Perform a DMFT self-consistency step ."""
+        dmft_step_start = time.time()
+
+        fit_start = time.time()
+        self.gfimp.fit(self.delta)
+        fit_duration = time.time() - fit_start
+
+        update_start = time.time()
         self.gfimp.update(self.gfloc.mu - self.gfloc.ed)
+        update_duration = time.time() - update_start
+
+        solve_start = time.time()
         self.gfimp.solve()
+        solve_duration = time.time() - solve_start
+
+        local_start = time.time()
         self.gfloc.set_local(self.gfimp.Sigma)
+        local_duration = time.time() - local_start
+
+        dmft_step_duration = time.time() - dmft_step_start
+
+        pprint(f"Fit Duration: {fit_duration:.4f} sec")
+        pprint(f"Update Duration: {update_duration:.4f} sec")
+        pprint(f"Solve Duration: {solve_duration:.4f} sec")
+        pprint(f"Local Duration: {local_duration:.4f} sec")
+        pprint(f"DMFT Step Duration: {dmft_step_duration:.4f} sec")
 
     def dmft_step_adjust(self):
         """Perform a DMFT step and adjust chemical potential to target occupation."""
@@ -508,18 +532,22 @@ class DMFT:
 
     def __call__(self, delta):
         pprint(f"Iteration : {self.it:2}")
+        iteration_start = time.time()
 
         self.delta = delta
         non_causal = delta.imag > 0  # Ensures that the imaginary part is negative
         delta[non_causal].imag = -1e-20
         occp, delta_new = self.step()
         eps = np.linalg.norm(delta_new - delta) / np.linalg.norm(delta)
+        iteration_end = time.time()
+        iteration_time = iteration_end - iteration_start
 
         message = " | ".join(
             [
                 f"Occupation : {occp:.5f}",
                 f"Chemical potential : {self.gfloc.mu:.5f}",
                 f"Relative Error : {eps:.5f}",
+                # f"Total iteration time : {iteration_time: .3f} sec",
             ]
         )
         pprint(message)
