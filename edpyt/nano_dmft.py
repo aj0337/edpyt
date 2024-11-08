@@ -219,7 +219,6 @@ class Gfimp:
 
         start, end = self._get_chunk_indices()
         chunk = self[start:end]
-        print(RANK, len(chunk))
         for i, gf in enumerate(chunk, start):
             gf.fit(delta[i])
 
