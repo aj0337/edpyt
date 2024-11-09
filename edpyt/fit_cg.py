@@ -1,6 +1,6 @@
 import numpy as np
 from numba import guvectorize, njit
-from scipy.optimize import minimize
+from scipy.optimize import fmin_cg
 
 """Look at DCore github for example codes."""
 
@@ -75,9 +75,7 @@ def fit_hybrid(z, p, vals_true):
     ddelta = DDelta(z, p.size)
     chi2 = Chi2(delta, vals_true)
     dchi2 = dChi2(delta, ddelta, vals_true)
-
-    res = minimize(chi2, p, jac=dchi2, method="L-BFGS-B", options={"disp": False})
-    p[:] = res.x
+    p[:] = fmin_cg(chi2, p, dchi2, disp=False)
 
 
 def get_initial_bath(*, p=None, nbath=None, bandwidth=2.0):
