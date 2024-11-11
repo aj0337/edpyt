@@ -1,6 +1,6 @@
 import time
-import h5py
 
+import h5py
 import numpy as np
 from scipy.optimize import broyden1, linearmixing, root_scalar
 
@@ -12,6 +12,7 @@ from edpyt.fit_cg import _delta, fit_hybrid, get_initial_bath
 from edpyt.gf_lanczos import build_gf_lanczos
 from edpyt.integrate_gf import integrate_gf
 from edpyt.pprint import pprint
+from edpyt.utils.data_recorder import DMFTDataRecorder
 
 
 class Converged(Exception):
@@ -402,25 +403,6 @@ class Gfhilbert(Gfloc):
 
 
 class DMFT:
-    """Base class for DMFT self-consistent loop.
-
-    Sub classes can overwrite the methods:
-        - initialize
-        - step
-        - distance
-
-    methods must:
-        - initialize
-            call   : -
-            return : initial guess
-        - step
-            call   : -
-            return : the current occupation and a new guess for the next iteration.
-        - distance
-            call   : __call__
-            return : the error w.r.t. the previous iteration
-    """
-
     def __init__(
         self,
         gfimp,
@@ -449,15 +431,11 @@ class DMFT:
         self.store_last_n = store_last_n
         self.store_iterations = store_iterations
         self.egrid = egrid
-        self.iter_filename = iter_filename  # Store the file path + name for later use
 
-        # Initialize HDF5 file for storing iteration data if storage is enabled
-        if self.store_iterations:
-            with h5py.File(self.iter_filename, "w") as f:
-                f.create_group(
-                    "last_n_iterations"
-                )  # For delta, sigma, gfloc (last n only)
-                f.create_group("all_bath_parameters")  # For vk, ek (all iterations)
+        # Initialize DMFTDataRecorder if storing iterations is enabled
+        self.data_recorder = (
+            DMFTDataRecorder(iter_filename, store_last_n) if store_iterations else None
+        )
 
     def initialize(self, U, Sigma, mu=None):
         if mu is None:
@@ -515,27 +493,11 @@ class DMFT:
         return eps
 
     def save_iteration_data(self, iter_num, delta, sigma, gfloc):
-        """Save iteration data to HDF5 file, keeping only the last n iterations for delta, sigma, gfloc,
-        and storing all bath parameters for each iteration."""
-        with h5py.File(self.iter_filename, "a") as f:
-            # Store bath parameters vk and ek for each gf in gfimp
-            bath_grp = f["all_bath_parameters"]
-            iter_bath_grp = bath_grp.create_group(f"iteration_{iter_num}")
-
-            for i, gf in enumerate(self.gfimp):
-                iter_bath_grp.create_dataset(f"vk_{i}", data=gf.Delta.vk)
-                iter_bath_grp.create_dataset(f"ek_{i}", data=gf.Delta.ek)
-
-            # Store only last n iterations for delta, sigma, gfloc
-            iter_grp = f["last_n_iterations"]
-            if len(iter_grp.keys()) >= self.store_last_n:
-                oldest_iter = sorted(iter_grp.keys())[0]
-                del iter_grp[oldest_iter]
-
-            grp = iter_grp.create_group(f"iteration_{iter_num}")
-            grp.create_dataset("delta", data=delta)
-            grp.create_dataset("sigma", data=sigma)
-            grp.create_dataset("gfloc", data=gfloc)
+        """Interface method to call DMFTDataRecorder if enabled."""
+        if self.data_recorder:
+            self.data_recorder.save_iteration_data(
+                iter_num, delta, sigma, gfloc, self.gfimp
+            )
 
     def __call__(self, delta):
         pprint(f"Iteration : {self.it:2}")
