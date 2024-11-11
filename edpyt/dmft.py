@@ -1,4 +1,5 @@
 import time
+import h5py
 
 import numpy as np
 from scipy.optimize import broyden1, linearmixing, root_scalar
@@ -429,9 +430,10 @@ class DMFT:
         tol: float = 1e-3,
         adjust_mu: bool = False,
         alpha: float = 0.0,
-        store_last_n: int = 5,  # Number of last iterations to store
+        store_last_n: int = 5,  # Number of last iterations to store for delta, sigma, gfloc
         store_iterations: bool = False,  # Flag to enable/disable storing of last n iterations
         egrid=None,
+        iter_filename: str = "dmft_iterations.h5",  # Optional path + file name for storage
     ):
         self.gfimp = gfimp
         self.gfloc = gfloc
@@ -447,14 +449,15 @@ class DMFT:
         self.store_last_n = store_last_n
         self.store_iterations = store_iterations
         self.egrid = egrid
+        self.iter_filename = iter_filename  # Store the file path + name for later use
 
-        # Initialize storage lists, only if storage is enabled
+        # Initialize HDF5 file for storing iteration data if storage is enabled
         if self.store_iterations:
-            self.deltas = []
-            self.sigmas = []
-            self.gflocs = []
-            self.bath_couplings = []  # Store v_k after each fit
-            self.bath_energies = []  # Store e_k after each fit
+            with h5py.File(self.iter_filename, "w") as f:
+                f.create_group(
+                    "last_n_iterations"
+                )  # For delta, sigma, gfloc (last n only)
+                f.create_group("all_bath_parameters")  # For vk, ek (all iterations)
 
     def initialize(self, U, Sigma, mu=None):
         if mu is None:
@@ -484,16 +487,8 @@ class DMFT:
         """Perform a DMFT self-consistency step ."""
 
         self.gfimp.fit(self.delta)
-
-        # Store bath parameters vk and ek after fitting
-        if self.store_iterations:
-            self.bath_couplings.append([gf.Delta.vk.copy() for gf in self.gfimp])
-            self.bath_energies.append([gf.Delta.ek.copy() for gf in self.gfimp])
-
         self.gfimp.update(self.gfloc.mu - self.gfloc.ed)
-
         self.gfimp.solve()
-
         self.gfloc.set_local(self.gfimp.Sigma)
 
     def dmft_step_adjust(self):
@@ -519,6 +514,29 @@ class DMFT:
         eps = self.weights * (self(delta) - delta)
         return eps
 
+    def save_iteration_data(self, iter_num, delta, sigma, gfloc):
+        """Save iteration data to HDF5 file, keeping only the last n iterations for delta, sigma, gfloc,
+        and storing all bath parameters for each iteration."""
+        with h5py.File(self.iter_filename, "a") as f:
+            # Store bath parameters vk and ek for each gf in gfimp
+            bath_grp = f["all_bath_parameters"]
+            iter_bath_grp = bath_grp.create_group(f"iteration_{iter_num}")
+
+            for i, gf in enumerate(self.gfimp):
+                iter_bath_grp.create_dataset(f"vk_{i}", data=gf.Delta.vk)
+                iter_bath_grp.create_dataset(f"ek_{i}", data=gf.Delta.ek)
+
+            # Store only last n iterations for delta, sigma, gfloc
+            iter_grp = f["last_n_iterations"]
+            if len(iter_grp.keys()) >= self.store_last_n:
+                oldest_iter = sorted(iter_grp.keys())[0]
+                del iter_grp[oldest_iter]
+
+            grp = iter_grp.create_group(f"iteration_{iter_num}")
+            grp.create_dataset("delta", data=delta)
+            grp.create_dataset("sigma", data=sigma)
+            grp.create_dataset("gfloc", data=gfloc)
+
     def __call__(self, delta):
         pprint(f"Iteration : {self.it:2}")
 
@@ -536,21 +554,11 @@ class DMFT:
             ]
         )
         pprint(message)
-
-        # Conditionally store delta, Sigma, and gfloc if storage is enabled
+        # Save iteration data to HDF5, keeping only last n iterations
         if self.store_iterations:
-            if len(self.deltas) >= self.store_last_n:
-                self.deltas.pop(0)
-                self.sigmas.pop(0)
-                self.gflocs.pop(0)
-
-            self.deltas.append(delta.copy())
-            self.sigmas.append(
-                self.gfimp.Sigma(self.egrid).copy()
-            )  # Assuming Sigma is updated within gfimp
-            self.gflocs.append(
-                self.gfloc(self.egrid).copy()
-            )  # Assuming gfloc can be deep-copied
+            sigma = self.gfimp.Sigma(self.egrid)
+            gfloc = self.gfloc(self.egrid)
+            self.save_iteration_data(self.it, delta.copy(), sigma.copy(), gfloc.copy())
 
         if eps < self.tol:
             raise Converged("Converged!")
