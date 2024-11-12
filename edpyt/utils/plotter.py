@@ -3,6 +3,52 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+# def plot_delta(delta, matsubara_energy, labels=None, plot_params=None):
+#     """
+#     Plots the real and imaginary parts of delta as a function of the imaginary part of Matsubara energy.
+
+#     Parameters:
+#         delta (np.ndarray): Array containing the delta data with shape (n_impurities, n_matsubara).
+#         matsubara_energy (np.ndarray): Array of Matsubara energies (complex) from which the imaginary part will be used.
+#         labels (list of str, optional): List of labels for each impurity curve. Defaults to "Impurity i" if not provided.
+#         plot_params (dict, optional): Dictionary of plot parameters to customize the plot appearance.
+#     """
+#     n_impurities = delta.shape[0]
+#     if labels is None:
+#         labels = [f"Impurity {i}" for i in range(n_impurities)]
+#     if len(labels) != n_impurities:
+#         raise ValueError(
+#             "Length of labels must match the number of impurity curves in delta."
+#         )
+#     matsubara_imag = matsubara_energy.imag
+#     if plot_params is None:
+#         plot_params = {}
+
+#     fig, axs = plt.subplots(
+#         2, 1, figsize=plot_params.get("figsize", (10, 8)), sharex=True
+#     )
+
+#     for i in range(n_impurities):
+#         axs[0].plot(matsubara_imag, delta[i].real, label=labels[i])
+#     axs[0].set_ylabel(plot_params.get("ylabel_real", "Re(Δ)"))
+#     axs[0].legend()
+#     axs[0].grid(plot_params.get("grid", True))
+#     axs[0].set_xlim(plot_params.get("xlim"))
+#     axs[0].set_ylim(plot_params.get("ylim_real"))
+#     axs[0].set_title(plot_params.get("title_real", "Real part of Δ"))
+
+#     for i in range(n_impurities):
+#         axs[1].plot(matsubara_imag, delta[i].imag, label=labels[i])
+#     axs[1].set_ylabel(plot_params.get("ylabel_imag", "Im(Δ)"))
+#     axs[1].set_xlabel(plot_params.get("xlabel", "Imaginary part of Matsubara energy"))
+#     axs[1].grid(plot_params.get("grid", True))
+#     axs[1].set_xlim(plot_params.get("xlim"))
+#     axs[1].set_ylim(plot_params.get("ylim_imag"))
+#     axs[1].set_title(plot_params.get("title_imag", "Imaginary part of Δ"))
+
+#     plt.tight_layout()
+#     plt.show()
+
 def plot_delta(delta, matsubara_energy, labels=None, plot_params=None):
     """
     Plots the real and imaginary parts of delta as a function of the imaginary part of Matsubara energy.
@@ -17,17 +63,19 @@ def plot_delta(delta, matsubara_energy, labels=None, plot_params=None):
     if labels is None:
         labels = [f"Impurity {i}" for i in range(n_impurities)]
     if len(labels) != n_impurities:
-        raise ValueError(
-            "Length of labels must match the number of impurity curves in delta."
-        )
+        raise ValueError("Length of labels must match the number of impurity curves in delta.")
+
     matsubara_imag = matsubara_energy.imag
     if plot_params is None:
         plot_params = {}
 
-    fig, axs = plt.subplots(
-        2, 1, figsize=plot_params.get("figsize", (10, 8)), sharex=True
-    )
+    # Create figure with shared x-axis for subplots
+    fig, axs = plt.subplots(2, 1, figsize=plot_params.get("figsize", (10, 8)), sharex=True)
 
+    # Set main title for the figure
+    fig.suptitle(plot_params.get("title", "Delta Plot"))
+
+    # Plot real part
     for i in range(n_impurities):
         axs[0].plot(matsubara_imag, delta[i].real, label=labels[i])
     axs[0].set_ylabel(plot_params.get("ylabel_real", "Re(Δ)"))
@@ -35,8 +83,8 @@ def plot_delta(delta, matsubara_energy, labels=None, plot_params=None):
     axs[0].grid(plot_params.get("grid", True))
     axs[0].set_xlim(plot_params.get("xlim"))
     axs[0].set_ylim(plot_params.get("ylim_real"))
-    axs[0].set_title(plot_params.get("title_real", "Real part of Δ"))
 
+    # Plot imaginary part
     for i in range(n_impurities):
         axs[1].plot(matsubara_imag, delta[i].imag, label=labels[i])
     axs[1].set_ylabel(plot_params.get("ylabel_imag", "Im(Δ)"))
@@ -44,9 +92,8 @@ def plot_delta(delta, matsubara_energy, labels=None, plot_params=None):
     axs[1].grid(plot_params.get("grid", True))
     axs[1].set_xlim(plot_params.get("xlim"))
     axs[1].set_ylim(plot_params.get("ylim_imag"))
-    axs[1].set_title(plot_params.get("title_imag", "Imaginary part of Δ"))
 
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to accommodate suptitle
     plt.show()
 
 
@@ -181,44 +228,50 @@ def plot_bath_energies(h5_file_path, labels=None, plot_params=None):
         plot_params (dict, optional): Dictionary of plot parameters to customize the plot appearance.
     """
     with h5py.File(h5_file_path, "r") as f:
-        iterations = sorted(
-            f["all_bath_parameters"].keys(), key=lambda x: int(x.split("_")[-1])
-        )
-        n_impurities = len(f[f"all_bath_parameters/{iterations[0]}"].keys()) // 2
+        iterations = sorted(f["all_bath_parameters"].keys(), key=lambda x: int(x.split('_')[-1]))
+        n_impurities = len(f[f"all_bath_parameters/{iterations[0]}"].keys()) // 2  # assuming half are ek
 
+        # Set default labels if none provided
         if labels is None:
             labels = [f"Impurity {i}" for i in range(n_impurities)]
-        if len(labels) != n_impurities:
-            raise ValueError(
-                "Length of labels must match the number of impurities in each dataset."
-            )
 
+        # Ensure labels length matches the number of impurities
+        if len(labels) != n_impurities:
+            raise ValueError("Length of labels must match the number of impurities in each dataset.")
+
+        # Collect ek values across iterations for each impurity
         ek_values = {i: [] for i in range(n_impurities)}
         iter_nums = []
+
         for iter_key in iterations:
-            iter_num = int(iter_key.split("_")[-1])
+            iter_num = int(iter_key.split('_')[-1])
             iter_nums.append(iter_num)
             for i in range(n_impurities):
                 ek_values[i].append(f[f"all_bath_parameters/{iter_key}/ek_{i}"][:])
 
+    # Initialize plot parameters with defaults
     if plot_params is None:
         plot_params = {}
+
+    # Plot the ek values for each impurity
     plt.figure(figsize=plot_params.get("figsize", (10, 6)))
     for i in range(n_impurities):
         ek_values_array = np.array(ek_values[i])
         for j in range(ek_values_array.shape[1]):
             plt.plot(iter_nums, ek_values_array[:, j], label=f"{labels[i]} - ek_{j}")
 
+    # Labels and title
     plt.xlabel(plot_params.get("xlabel", "Iteration"))
     plt.ylabel(plot_params.get("ylabel", "Bath Energy (ek)"))
-    plt.title(
-        plot_params.get("title", "Bath Energies (ek) per Impurity Across Iterations")
-    )
-    plt.legend(loc=plot_params.get("legend_loc", "upper right"), fontsize="small")
-    plt.grid(plot_params.get("grid", True))
-    plt.tight_layout()
-    plt.show()
+    plt.title(plot_params.get("title", "Bath Energies (ek) per Impurity Across Iterations"))
+    plt.xlim(plot_params.get("xlim", None))
+    plt.ylim(plot_params.get("ylim", None))
 
+    # Position the legend below the plot with multiple columns
+    legend_columns = plot_params.get("legend_columns", 5)  # Default to 5 columns
+    plt.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=legend_columns, fontsize='small')
+    plt.grid(plot_params.get("grid", True))
+    plt.show()
 
 def plot_bath_couplings(h5_file_path, labels=None, plot_params=None):
     """
@@ -229,14 +282,9 @@ def plot_bath_couplings(h5_file_path, labels=None, plot_params=None):
         labels (list of str, optional): List of labels for each impurity.
         plot_params (dict, optional): Dictionary of plot parameters to customize the plot appearance.
     """
-    # Open the HDF5 file and extract bath couplings
     with h5py.File(h5_file_path, "r") as f:
-        iterations = sorted(
-            f["all_bath_parameters"].keys(), key=lambda x: int(x.split("_")[-1])
-        )
-        n_impurities = (
-            len(f[f"all_bath_parameters/{iterations[0]}"].keys()) // 2
-        )  # assuming half are vk
+        iterations = sorted(f["all_bath_parameters"].keys(), key=lambda x: int(x.split('_')[-1]))
+        n_impurities = len(f[f"all_bath_parameters/{iterations[0]}"].keys()) // 2  # assuming half are vk
 
         # Set default labels if none provided
         if labels is None:
@@ -244,16 +292,14 @@ def plot_bath_couplings(h5_file_path, labels=None, plot_params=None):
 
         # Ensure labels length matches the number of impurities
         if len(labels) != n_impurities:
-            raise ValueError(
-                "Length of labels must match the number of impurities in each dataset."
-            )
+            raise ValueError("Length of labels must match the number of impurities in each dataset.")
 
         # Collect vk values across iterations for each impurity
         vk_values = {i: [] for i in range(n_impurities)}
         iter_nums = []
 
         for iter_key in iterations:
-            iter_num = int(iter_key.split("_")[-1])
+            iter_num = int(iter_key.split('_')[-1])
             iter_nums.append(iter_num)
             for i in range(n_impurities):
                 vk_values[i].append(f[f"all_bath_parameters/{iter_key}/vk_{i}"][:])
@@ -272,12 +318,12 @@ def plot_bath_couplings(h5_file_path, labels=None, plot_params=None):
     # Labels and title
     plt.xlabel(plot_params.get("xlabel", "Iteration"))
     plt.ylabel(plot_params.get("ylabel", "Bath Coupling (vk)"))
-    plt.title(
-        plot_params.get("title", "Bath Couplings (vk) per Impurity Across Iterations")
-    )
-    plt.xlim(plot_params.get("xlim"))
-    plt.ylim(plot_params.get("ylim"))
-    plt.legend(loc=plot_params.get("legend_loc", "upper right"), fontsize="small")
+    plt.title(plot_params.get("title", "Bath Couplings (vk) per Impurity Across Iterations"))
+    plt.xlim(plot_params.get("xlim", None))
+    plt.ylim(plot_params.get("ylim", None))
+
+    # Position the legend below the plot with multiple columns
+    legend_columns = plot_params.get("legend_columns", 5)  # Default to 5 columns
+    plt.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=legend_columns, fontsize='small')
     plt.grid(plot_params.get("grid", True))
-    plt.tight_layout()
     plt.show()
