@@ -1,6 +1,3 @@
-import time
-
-import h5py
 import numpy as np
 from scipy.optimize import broyden1, linearmixing, root_scalar
 

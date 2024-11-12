@@ -1,5 +1,5 @@
+from mpi4py import MPI
 import h5py
-
 
 class DMFTDataRecorder:
     """
@@ -20,9 +20,14 @@ class DMFTDataRecorder:
         """
         self.filename = filename
         self.store_last_n = store_last_n
-        with h5py.File(self.filename, "w") as f:
-            f.create_group("last_n_iterations")  # For delta, sigma, gfloc (last n only)
-            f.create_group("all_bath_parameters")  # For vk, ek (all iterations)
+        self.comm = MPI.COMM_WORLD
+        self.rank = self.comm.Get_rank()
+
+        # Only initialize the HDF5 file structure if on rank 0
+        if self.rank == 0:
+            with h5py.File(self.filename, "w") as f:
+                f.create_group("last_n_iterations")  # For delta, sigma, gfloc (last n only)
+                f.create_group("all_bath_parameters")  # For vk, ek (all iterations)
 
     def save_iteration_data(self, iter_num, delta, sigma, gfloc, gfimp):
         """
@@ -36,22 +41,24 @@ class DMFTDataRecorder:
             gfloc (np.ndarray): The gfloc data for the current iteration.
             gfimp (list): A list of gfimp objects from which bath parameters are extracted.
         """
-        with h5py.File(self.filename, "a") as f:
-            # Store bath parameters vk and ek for each gf in gfimp
-            bath_grp = f["all_bath_parameters"]
-            iter_bath_grp = bath_grp.create_group(f"iteration_{iter_num}")
+        # Only rank 0 will write to the HDF5 file
+        if self.rank == 0:
+            with h5py.File(self.filename, "a") as f:
+                # Store bath parameters vk and ek for each gf in gfimp
+                bath_grp = f["all_bath_parameters"]
+                iter_bath_grp = bath_grp.create_group(f"iteration_{iter_num}")
 
-            for i, gf in enumerate(gfimp):
-                iter_bath_grp.create_dataset(f"vk_{i}", data=gf.Delta.vk)
-                iter_bath_grp.create_dataset(f"ek_{i}", data=gf.Delta.ek)
+                for i, gf in enumerate(gfimp):
+                    iter_bath_grp.create_dataset(f"vk_{i}", data=gf.Delta.vk)
+                    iter_bath_grp.create_dataset(f"ek_{i}", data=gf.Delta.ek)
 
-            # Store only last n iterations for delta, sigma, gfloc
-            iter_grp = f["last_n_iterations"]
-            if len(iter_grp.keys()) >= self.store_last_n:
-                oldest_iter = sorted(iter_grp.keys())[0]
-                del iter_grp[oldest_iter]
+                # Store only last n iterations for delta, sigma, gfloc
+                iter_grp = f["last_n_iterations"]
+                if len(iter_grp.keys()) >= self.store_last_n:
+                    oldest_iter = sorted(iter_grp.keys())[0]
+                    del iter_grp[oldest_iter]
 
-            grp = iter_grp.create_group(f"iteration_{iter_num}")
-            grp.create_dataset("delta", data=delta)
-            grp.create_dataset("sigma", data=sigma)
-            grp.create_dataset("gfloc", data=gfloc)
+                grp = iter_grp.create_group(f"iteration_{iter_num}")
+                grp.create_dataset("delta", data=delta)
+                grp.create_dataset("sigma", data=sigma)
+                grp.create_dataset("gfloc", data=gfloc)
