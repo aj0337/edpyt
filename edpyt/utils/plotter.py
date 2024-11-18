@@ -2,6 +2,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def plot_delta(delta, matsubara_energy, labels=None, plot_params=None, ax=None):
     """
     Plots the real and imaginary parts of delta as a function of the imaginary part of Matsubara energy.
@@ -17,7 +18,9 @@ def plot_delta(delta, matsubara_energy, labels=None, plot_params=None, ax=None):
     if labels is None:
         labels = [f"Impurity {i}" for i in range(n_impurities)]
     if len(labels) != n_impurities:
-        raise ValueError("Length of labels must match the number of impurity curves in delta.")
+        raise ValueError(
+            "Length of labels must match the number of impurity curves in delta."
+        )
 
     matsubara_imag = matsubara_energy.imag
     if plot_params is None:
@@ -25,7 +28,9 @@ def plot_delta(delta, matsubara_energy, labels=None, plot_params=None, ax=None):
 
     # Create figure and axis if not provided
     if ax is None:
-        fig, axs = plt.subplots(2, 1, figsize=plot_params.get("figsize", (10, 8)), sharex=True)
+        fig, axs = plt.subplots(
+            2, 1, figsize=plot_params.get("figsize", (10, 8)), sharex=True
+        )
         fig.suptitle(plot_params.get("title", "Delta Plot"))
     else:
         axs = [ax, ax]
@@ -53,7 +58,9 @@ def plot_delta(delta, matsubara_energy, labels=None, plot_params=None, ax=None):
         plt.show()
 
 
-def plot_gfloc_spectral_function(gfloc, energy_grid, labels=None, plot_params=None, ax=None):
+def plot_gfloc_spectral_function(
+    gfloc, energy_grid, labels=None, plot_params=None, ax=None
+):
     """
     Plots -(1/π) * Im(gfloc[i]) for each impurity as a function of energy.
 
@@ -68,7 +75,9 @@ def plot_gfloc_spectral_function(gfloc, energy_grid, labels=None, plot_params=No
     if labels is None:
         labels = [f"Impurity {i}" for i in range(n_impurities)]
     if len(labels) != n_impurities:
-        raise ValueError("Length of labels must match the number of impurities in gfloc.")
+        raise ValueError(
+            "Length of labels must match the number of impurities in gfloc."
+        )
 
     spectral_function = -(1 / np.pi) * np.imag(gfloc)
     if plot_params is None:
@@ -117,7 +126,11 @@ def plot_trace_sigma(sigmas, energy_grid, plot_params=None, ax=None):
 
     ax.set_xlabel(plot_params.get("xlabel", "Energy (Real part of z_ret)"))
     ax.set_ylabel(plot_params.get("ylabel", "Tr(Σ)"))
-    ax.set_title(plot_params.get("title", "Real and Imaginary Parts of Tr(Σ) as a Function of Energy"))
+    ax.set_title(
+        plot_params.get(
+            "title", "Real and Imaginary Parts of Tr(Σ) as a Function of Energy"
+        )
+    )
     ax.legend(loc=plot_params.get("legend_loc", "upper right"))
     ax.set_xlim(plot_params.get("xlim"))
     ax.set_ylim(plot_params.get("ylim"))
@@ -128,7 +141,9 @@ def plot_trace_sigma(sigmas, energy_grid, plot_params=None, ax=None):
         plt.show()
 
 
-def plot_charge_per_impurity(datasets, labels=None, dataset_labels=None, plot_params=None, ax=None):
+def plot_charge_per_impurity(
+    datasets, labels=None, dataset_labels=None, plot_params=None, ax=None
+):
     """
     Plots charge per impurity for multiple datasets as a grouped bar plot for comparison.
 
@@ -144,7 +159,9 @@ def plot_charge_per_impurity(datasets, labels=None, dataset_labels=None, plot_pa
     if labels is None:
         labels = [f"Impurity {i}" for i in range(n_impurities)]
     if len(labels) != n_impurities:
-        raise ValueError("Length of labels must match the number of impurities in each dataset.")
+        raise ValueError(
+            "Length of labels must match the number of impurities in each dataset."
+        )
     if dataset_labels is None:
         dataset_labels = [f"Dataset {i}" for i in range(n_datasets)]
     if len(dataset_labels) != n_datasets:
@@ -163,7 +180,13 @@ def plot_charge_per_impurity(datasets, labels=None, dataset_labels=None, plot_pa
     colors = colors * (n_datasets // len(colors) + 1)
 
     for i, data in enumerate(datasets):
-        ax.bar(x + (i - n_datasets / 2) * width, data, width, label=dataset_labels[i], color=colors[i])
+        ax.bar(
+            x + (i - n_datasets / 2) * width,
+            data,
+            width,
+            label=dataset_labels[i],
+            color=colors[i],
+        )
 
     ax.set_xlabel(plot_params.get("xlabel", "Impurity"))
     ax.set_ylabel(plot_params.get("ylabel", "Charge"))
@@ -190,7 +213,9 @@ def plot_bath_energies(h5_file_path, labels=None, plot_params=None, ax=None):
         ax (matplotlib.axes.Axes, optional): Axis to plot on. Creates a new figure if None.
     """
     with h5py.File(h5_file_path, "r") as f:
-        iterations = sorted(f["all_bath_parameters"].keys(), key=lambda x: int(x.split('_')[-1]))
+        iterations = sorted(
+            f["all_bath_parameters"].keys(), key=lambda x: int(x.split("_")[-1])
+        )
         n_impurities = len(f[f"all_bath_parameters/{iterations[0]}"].keys()) // 2
 
         if labels is None:
@@ -200,7 +225,7 @@ def plot_bath_energies(h5_file_path, labels=None, plot_params=None, ax=None):
         iter_nums = []
 
         for iter_key in iterations:
-            iter_num = int(iter_key.split('_')[-1])
+            iter_num = int(iter_key.split("_")[-1])
             iter_nums.append(iter_num)
             for i in range(n_impurities):
                 ek_values[i].append(f[f"all_bath_parameters/{iter_key}/ek_{i}"][:])
@@ -218,12 +243,19 @@ def plot_bath_energies(h5_file_path, labels=None, plot_params=None, ax=None):
 
     ax.set_xlabel(plot_params.get("xlabel", "Iteration"))
     ax.set_ylabel(plot_params.get("ylabel", "Bath Energy (ek)"))
-    ax.set_title(plot_params.get("title", "Bath Energies (ek) per Impurity Across Iterations"))
+    ax.set_title(
+        plot_params.get("title", "Bath Energies (ek) per Impurity Across Iterations")
+    )
     ax.set_xlim(plot_params.get("xlim", None))
     ax.set_ylim(plot_params.get("ylim", None))
 
     legend_columns = plot_params.get("legend_columns", 5)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=legend_columns, fontsize='small')
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=legend_columns,
+        fontsize="small",
+    )
     ax.grid(plot_params.get("grid", True))
 
     if ax is None:
@@ -241,7 +273,9 @@ def plot_bath_couplings(h5_file_path, labels=None, plot_params=None, ax=None):
         ax (matplotlib.axes.Axes, optional): Axis to plot on. Creates a new figure if None.
     """
     with h5py.File(h5_file_path, "r") as f:
-        iterations = sorted(f["all_bath_parameters"].keys(), key=lambda x: int(x.split('_')[-1]))
+        iterations = sorted(
+            f["all_bath_parameters"].keys(), key=lambda x: int(x.split("_")[-1])
+        )
         n_impurities = len(f[f"all_bath_parameters/{iterations[0]}"].keys()) // 2
 
         if labels is None:
@@ -251,7 +285,7 @@ def plot_bath_couplings(h5_file_path, labels=None, plot_params=None, ax=None):
         iter_nums = []
 
         for iter_key in iterations:
-            iter_num = int(iter_key.split('_')[-1])
+            iter_num = int(iter_key.split("_")[-1])
             iter_nums.append(iter_num)
             for i in range(n_impurities):
                 vk_values[i].append(f[f"all_bath_parameters/{iter_key}/vk_{i}"][:])
@@ -269,13 +303,107 @@ def plot_bath_couplings(h5_file_path, labels=None, plot_params=None, ax=None):
 
     ax.set_xlabel(plot_params.get("xlabel", "Iteration"))
     ax.set_ylabel(plot_params.get("ylabel", "Bath Coupling (vk)"))
-    ax.set_title(plot_params.get("title", "Bath Couplings (vk) per Impurity Across Iterations"))
+    ax.set_title(
+        plot_params.get("title", "Bath Couplings (vk) per Impurity Across Iterations")
+    )
     ax.set_xlim(plot_params.get("xlim", None))
     ax.set_ylim(plot_params.get("ylim", None))
 
     legend_columns = plot_params.get("legend_columns", 5)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=legend_columns, fontsize='small')
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=legend_columns,
+        fontsize="small",
+    )
     ax.grid(plot_params.get("grid", True))
 
     if ax is None:
         plt.show()
+
+
+def plot_transmission(
+    energies, dft_transmission=None, dmft_transmission=None, plot_params=None
+):
+    """
+    Plots both DFT and DMFT transmission functions on the same plot for comparison.
+
+    Parameters:
+        energies (np.ndarray): Array of energy values (real part).
+        dft_transmission (np.ndarray, optional): Transmission data for DFT.
+        dmft_transmission (np.ndarray, optional): Transmission data for DMFT.
+        plot_params (dict, optional): Dictionary of plot parameters to customize the plot appearance.
+    """
+    if plot_params is None:
+        plot_params = {}
+
+    fig, ax = plt.subplots(figsize=plot_params.get("figsize", (10, 6)))
+
+    # Check if yscale is set to "log"
+    use_log_scale = plot_params.get("yscale") == "log"
+    # Prepare DFT transmission for log scale if applicable
+    if dft_transmission is not None:
+        if use_log_scale:
+            positive_indices_dft = dft_transmission > 0
+            if not np.any(positive_indices_dft):
+                print(
+                    "Warning: DFT transmission has no positive values, unable to apply log scale."
+                )
+                return
+            if not np.all(positive_indices_dft):
+                print(
+                    "Warning: Some DFT transmission values are non-positive, excluding them for log scale."
+                )
+            # Filter energies and transmission for positive values only
+            ax.plot(
+                energies[positive_indices_dft].real,
+                dft_transmission[positive_indices_dft],
+                label="DFT Transmission",
+                color="blue",
+            )
+        else:
+            ax.plot(
+                energies.real, dft_transmission, label="DFT Transmission", color="blue"
+            )
+
+    # Prepare DMFT transmission for log scale if applicable
+    if dmft_transmission is not None:
+        if use_log_scale:
+            positive_indices_dmft = dmft_transmission > 0
+            if not np.any(positive_indices_dmft):
+                print(
+                    "Warning: DMFT transmission has no positive values, unable to apply log scale."
+                )
+                return
+            if not np.all(positive_indices_dmft):
+                print(
+                    "Warning: Some DMFT transmission values are non-positive, excluding them for log scale."
+                )
+            # Filter energies and transmission for positive values only
+            ax.plot(
+                energies[positive_indices_dmft].real,
+                dmft_transmission[positive_indices_dmft],
+                label="DMFT Transmission",
+                color="red",
+            )
+        else:
+            ax.plot(
+                energies.real, dmft_transmission, label="DMFT Transmission", color="red"
+            )
+
+    # Customize plot labels, title, and other parameters
+    ax.set_xlabel(plot_params.get("xlabel", "Energy (Real part of z_ret)"))
+    ax.set_ylabel(plot_params.get("ylabel", "Transmission"))
+    ax.set_title(plot_params.get("title", "Transmission Comparison"))
+    ax.legend(loc=plot_params.get("legend_loc", "upper right"))
+
+    # Apply log scale if specified
+    if use_log_scale:
+        ax.set_yscale("log")
+
+    ax.set_xlim(plot_params.get("xlim"))
+    ax.set_ylim(plot_params.get("ylim"))
+    ax.grid(plot_params.get("grid", True))
+
+    plt.tight_layout()
+    plt.show()
