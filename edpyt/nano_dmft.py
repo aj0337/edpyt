@@ -162,16 +162,6 @@ class Gfloc:
 
     def integrate(self, mu=0.0):
         occps = self.get_occps(mu)
-        # occps_loc = integrate_gf(self, mu)
-        # if self.comm is not None:
-        #     occps = np.empty(occps_loc.size*self.comm.size, occps_loc.dtype)
-        #     self.comm.Allgather([occps_loc, occps_loc.size], [occps, occps_loc.size])
-        #     shape = list(occps_loc.shape)
-        #     shape[0] *= self.comm.size
-        #     occps.shape = shape
-        # else:
-        #     occps = occps_loc
-        # occps = np.squeeze(occps[self.idx_inv,...])
         if occps.ndim < 2:
             return 2.0 * occps  # .sum()
         return occps.sum(1)  # .sum()
