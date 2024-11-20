@@ -482,7 +482,13 @@ class DMFT:
 
     def adjust_mu(self, gf, occupancy_goal, bracket=(-20.0, 20)):
         """Adjust chemical potential to achieve occupancy goal."""
-        distance = lambda mu: gf.integrate(mu).sum() - occupancy_goal.sum()
+
+        def distance(mu):
+            print("gf integrate", gf.integrate(mu).sum())
+            print("occupancy", occupancy_goal.sum())
+            print("distance", gf.integrate(mu).sum() - occupancy_goal.sum())
+            return gf.integrate(mu).sum() - occupancy_goal.sum()
+
         return root_scalar(distance, bracket=bracket, method="brentq").root
 
     def distance(self, delta):
