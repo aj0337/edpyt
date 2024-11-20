@@ -37,8 +37,8 @@ def _get_sigma_method(comm):
 def _get_occps_method(comm):
     if comm is not None:
 
-        def wrap(self, mu):
-            occps_loc = integrate_gf(self, mu)
+        def wrap(self, mu, nmats, beta):
+            occps_loc = integrate_gf(self, mu, nmats, beta)
             occps = np.empty(occps_loc.size * self.comm.size, occps_loc.dtype)
             self.comm.Allgather(
                 [occps_loc, occps_loc.size],
@@ -50,8 +50,8 @@ def _get_occps_method(comm):
 
     else:
 
-        def wrap(self, mu):
-            occps = integrate_gf(self, mu)
+        def wrap(self, mu, nmats, beta):
+            occps = integrate_gf(self, mu, nmats, beta)
             return np.squeeze(occps[self.idx_inv, ...])
 
     return wrap
@@ -77,7 +77,7 @@ class Gfloc:
     idx_inv : the indices of the unique array that reconstruct the input array
     """
 
-    def __init__(self, H, S, Hybrid, idx_neq, idx_inv, comm=None) -> None:
+    def __init__(self, H, S, Hybrid, idx_neq, idx_inv, nmats, beta, comm=None) -> None:
         self.n = H.shape[-1]
         self.H = H
         self.S = S
@@ -85,6 +85,8 @@ class Gfloc:
         self.idx_world = _get_idx_world(comm, len(idx_neq))
         self.idx_neq = idx_neq[self.idx_world]
         self.idx_inv = idx_inv
+        self.nmats = nmats
+        self.beta = beta
         self.comm = comm
         self.get_sigma = _get_sigma_method(comm).__get__(self)
         self.get_occps = _get_occps_method(comm).__get__(self)
@@ -160,8 +162,8 @@ class Gfloc:
 
     # Helper
 
-    def integrate(self, mu=0.0):
-        occps = self.get_occps(mu)
+    def integrate(self, mu, nmats, beta):
+        occps = self.get_occps(mu, nmats, beta)
         if occps.ndim < 2:
             return 2.0 * occps  # .sum()
         return occps.sum(1)  # .sum()

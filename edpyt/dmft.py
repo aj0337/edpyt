@@ -451,7 +451,9 @@ class DMFT:
     def step(self):
         if self.to_adjust_mu:
             self.dmft_step_adjust()
-            occp = self.gfloc.integrate(self.gfloc.mu)
+            occp = self.gfloc.integrate(
+                self.gfloc.mu, self.gfloc.nmats, self.gfloc.beta
+            )
         else:
             self.dmft_step()
             occp = self.occupancy_goal
@@ -484,9 +486,19 @@ class DMFT:
         """Adjust chemical potential to achieve occupancy goal."""
 
         def distance(mu):
-            print("gf integrate", gf.integrate(mu).sum())
-            print("distance", gf.integrate(mu).sum() - occupancy_goal.sum())
-            return gf.integrate(mu).sum() - occupancy_goal.sum()
+            print(
+                "gf integrate",
+                gf.integrate(mu, self.gfloc.nmats, self.gfloc.beta).sum(),
+            )
+            print(
+                "distance",
+                gf.integrate(mu, self.gfloc.nmats, self.gfloc.beta).sum()
+                - occupancy_goal.sum(),
+            )
+            return (
+                gf.integrate(mu, self.gfloc.nmats, self.gfloc.beta).sum()
+                - occupancy_goal.sum()
+            )
 
         return root_scalar(distance, bracket=bracket, method="brentq").root
 
