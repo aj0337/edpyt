@@ -486,15 +486,6 @@ class DMFT:
         """Adjust chemical potential to achieve occupancy goal."""
 
         def distance(mu):
-            print(
-                "gf integrate",
-                gf.integrate(mu, self.gfloc.nmats, self.gfloc.beta).sum(),
-            )
-            print(
-                "distance",
-                gf.integrate(mu, self.gfloc.nmats, self.gfloc.beta).sum()
-                - occupancy_goal.sum(),
-            )
             return (
                 gf.integrate(mu, self.gfloc.nmats, self.gfloc.beta).sum()
                 - occupancy_goal.sum()
