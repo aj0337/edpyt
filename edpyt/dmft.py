@@ -485,7 +485,6 @@ class DMFT:
 
         def distance(mu):
             print("gf integrate", gf.integrate(mu).sum())
-            print("occupancy", occupancy_goal.sum())
             print("distance", gf.integrate(mu).sum() - occupancy_goal.sum())
             return gf.integrate(mu).sum() - occupancy_goal.sum()
 
