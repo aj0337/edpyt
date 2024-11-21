@@ -101,7 +101,6 @@ def integrate_gf(gf, mu=0, T=300, nzp=100, R=1e10):
 
 
 def matsum_gf(gf, mu=0.0, nmats=3000, beta=70.0):
-    print("beta", mu, beta, flush=True)
     mu_old = gf.mu
     gf.mu = mu
 
