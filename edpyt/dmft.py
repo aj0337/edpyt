@@ -137,7 +137,7 @@ class Gfimp:
         """Non-interacting green's function."""
         #                 1
         # g  =    -----------------
-        #         z + mu - Delta(z)
+        #  0      z + mu - Delta(z)
         g0_inv = z - self.H[0, 0] - self.Delta(z)
         if inverse:
             return g0_inv
@@ -147,7 +147,7 @@ class Gfimp:
         """Interacting green's function."""
         #                    1
         # g  =    ----------------------------
-        #  0      z + mu - Delta(z) - Sigma(z)
+        #         z + mu - Delta(z) - Sigma(z)
         return np.reciprocal(z - self.H[0, 0] - self.Delta(z) - self.Sigma(z))
 
     def Sigma(self, z):
@@ -164,6 +164,7 @@ class Gfimp:
         screen_espace(espace, egs)  # , beta=self.beta)
         if self.adjust_neig:
             adjust_neigsector(espace, self.neig, self.n)
+        # TODO write V to file to verify it does not change from [U, ... bunch of zeros]
         self.gf = build_gf_lanczos(
             H,
             V,
