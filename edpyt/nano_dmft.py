@@ -104,22 +104,32 @@ class Gfloc:
 
         n2 = self.n * self.n
 
-        for i in range(nc):
+        for i in range(nc + 1):
             start = i * cs
             end = (i + 1) * cs
             z_chunk = z[start:end]
 
+            # TODO is this actually necessary?
+            if not len(z_chunk):
+                break
+
             sigma = self.get_sigma(z_chunk).T  # cs x n
             x = self.free(z_chunk, inverse=True)  # cs x n x n
-            x_flat = x.reshape(cs, n2)  # cs x n^2
+            ccs = len(z_chunk)
+            x_flat = x.reshape(ccs, n2)  # cs x n^2
             x_flat[:, :: (self.n + 1)] -= sigma
-            x = x_flat.reshape(cs, self.n, self.n)  # cs x n x n
+            x = x_flat.reshape(ccs, self.n, self.n)  # cs x n x n
             inv_diagonal = np.linalg.inv(x).diagonal(0, 1, 2)  # cs x n
             result.append(inv_diagonal[:, self.idx_neq])
 
-        result = np.array(result)  # nc x cs x n
+        if len(z) % cs == 0:
+            final_result = np.array(result).reshape((nc * cs, self.n))
+        else:
+            partial_result = np.array(result[:-1]).reshape((nc * cs, self.n))
+            remainder = np.array(result[-1]).reshape((len(z) % cs, self.n))
+            final_result = np.concatenate((partial_result, remainder))
 
-        return result.reshape(len(z), self.n).T  # len(z) x n
+        return final_result.T  # len(z) x n
 
     def update(self, mu):
         """Update chemical potential."""
