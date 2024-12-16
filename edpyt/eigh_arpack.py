@@ -1,18 +1,19 @@
 import numpy as np
-from scipy.sparse.linalg.eigen.arpack import _arpack
-from scipy.sparse.linalg.eigen.arpack.arpack import (
-    DSAUPD_ERRORS,
-    DSEUPD_ERRORS,
-    _SymmetricArpackParams,
-    _ARPACK_LOCK
-)
+from scipy.sparse.linalg.eigen import arpack
+# from scipy.sparse.linalg.eigen.arpack import _arpack
+# from scipy.sparse.linalg.eigen.arpack.arpack import (
+#     DSAUPD_ERRORS,
+#     DSEUPD_ERRORS,
+#     _SymmetricArpackParams,
+#     _ARPACK_LOCK
+# )
 from scipy._lib._util import _aligned_zeros
 
 arpack_int = np.dtype('int32')
 
 tp = 'd'
-arpack_solver = _arpack.dsaupd
-arpack_extract = _arpack.dseupd
+arpack_solver = arpack._arpack.dsaupd
+arpack_extract = arpack._arpack.dseupd
 
 # def eigsh(n, nev, matvec, v0=None):
 #     params = _SymmetricArpackParams(n, nev, tp, matvec,
@@ -181,7 +182,7 @@ def eigsh(n, nev, matvec, v0=None, arpack_param=None):
             break
 
     if info < 0:
-        raise RuntimeError(f'Error with dsaupd, info = {DSAUPD_ERRORS[info]}')
+        raise RuntimeError(f'Error with dsaupd, info = {arpack.DSAUPD_ERRORS[info]}')
 
     #       %-------------------------------------------%
     #       | No fatal errors occurred.                 |
@@ -207,7 +208,7 @@ def eigsh(n, nev, matvec, v0=None, arpack_param=None):
                    # n=n, ncv=ncv, ldv=ldv, lworkl=lworkl)
 
     if ierr != 0:
-        raise RuntimeError(f'Error with dseupd, info = {DSEUPD_ERRORS[info]}')
+        raise RuntimeError(f'Error with dseupd, info = {arpack.DSEUPD_ERRORS[info]}')
 
     nconv = iparam[4]
     d = d[:nconv]

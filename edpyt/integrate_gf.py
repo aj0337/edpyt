@@ -111,14 +111,14 @@ def integrate_gf(gf, mu=0, T=300, nzp=100, R=1e10):
 #     rho = np.real(mu_0) + np.imag(mu_1)
 #     return rho/2.
 
-def matsum_gf(gf, mu=0., nmats=3000, beta=70.):
+def matsum_gf(gf, mu=0., nmats=3000, beta=1e3):
     
     mu_old = gf.mu
     gf.mu = mu
     
     z = 1.j*(2*np.arange(nmats)+1)*np.pi/beta
     w2 = z.imag**2
-    gf_z  = gf(z)
+    gf_z  = gf(z)#.diagonal(0, 1, 2).T
     mu = - gf_z[...,-1].real * w2[-1]
     mu2 = mu**2
     

@@ -5,6 +5,7 @@ from scipy.optimize import broyden1, linearmixing, root_scalar
 
 # from edpyt_backend.fit_wrap import fit_hybrid
 from edpyt.espace import adjust_neigsector, build_espace, screen_espace
+
 # from edpyt.fit import Delta, set_initial_bath
 from edpyt.fit_cg import _delta, fit_hybrid, get_initial_bath
 from edpyt.gf_lanczos import build_gf_lanczos
@@ -13,7 +14,7 @@ from edpyt.integrate_gf import integrate_gf
 
 def adjust_mu(gf, occupancy_goal, bracket=(-20.0, 20)):
     """Get the chemical potential to obtain the occupancy goal.
-    
+
     NOTE : The gf is supposed to have the general form
     (z+mu-Delta(z)-Sigma(z))^-1. Here, `distance` returns
     the change in mu required to satisfy the occupancy goal.
@@ -152,7 +153,7 @@ class Gfimp:
         """Solve impurity model and set interacting green's function."""
         H, V = self.H, self.V
         espace, egs = build_espace(H, V, self.neig)
-        screen_espace(espace, egs)  # , beta=self.beta)
+        screen_espace(espace, egs, beta=self.beta)
         if self.adjust_neig:
             adjust_neigsector(espace, self.neig, self.n)
         self.gf = build_gf_lanczos(
@@ -176,7 +177,7 @@ class SpinGfimp:
 
     The up and down green's functions point to the sub-Hamiltonians of this
     green's function, i.e. up points to H[0] and down to H[1]. When calling
-    fit and/or update, the up & down green's function will fill their respective 
+    fit and/or update, the up & down green's function will fill their respective
     H's matrix elements. However, the impurity model is solved simultaneously by
     passing H[:,:,:] and V[:,:] to build_espace and the spin dependent
     green's functions are built separately from the same espace.
@@ -238,11 +239,13 @@ class SpinGfimp:
         """Solve impurity model and set interacting green's function."""
         H, V = self.H, self.V
         espace, egs = build_espace(H, V, self.neig)
-        screen_espace(espace, egs)
+        screen_espace(espace, egs, beta=self.beta)
         if self.adjust_neig:
             adjust_neigsector(espace, self.neig, self.n)
         for gf in self:
-            gf.gf = build_gf_lanczos(H, V, espace, self.beta, egs, repr="sp", ispin=gf.spin)
+            gf.gf = build_gf_lanczos(
+                H, V, espace, self.beta, egs, repr="sp", ispin=gf.spin
+            )
         self.espace = espace
         self.egs = egs
 
@@ -264,8 +267,7 @@ class SpinGfimp:
 
 
 class Gfloc:
-    """Parent local green's function.
-    """
+    """Parent local green's function."""
 
     def update(self, mu):
         """Update chemical potential."""
@@ -289,14 +291,13 @@ class Gfloc:
 
 
 # Analytical Bethe lattice
-_ht = lambda z: 2 * (z - 1j * np.sign(z.imag) * np.sqrt(1 - z ** 2))
+_ht = lambda z: 2 * (z - 1j * np.sign(z.imag) * np.sqrt(1 - z**2))
 eps = 1e-20
 ht = lambda z: _ht(z.real + 1.0j * (z.imag if z.imag > 0.0 else eps))
 
 
 class Gfhybrid(Gfloc):
-    """Local green's function defined by hybridization.
-    """
+    """Local green's function defined by hybridization."""
 
     #          __
     #         |                  1
@@ -321,8 +322,7 @@ class Gfhybrid(Gfloc):
 
 
 class Gfhilbert(Gfloc):
-    """Local green's function defined by hilbert transform.
-    """
+    """Local green's function defined by hilbert transform."""
 
     #          __
     #         |            dos(e)
@@ -350,12 +350,13 @@ def dmft_step(delta, gfimp, gfloc):
     """Perform a DMFT self-consistency step."""
     gfimp.fit(delta)  # at matsubara frequencies
     gfimp.update(gfloc.mu - gfloc.ed)
+    # gfimp.update(-gfloc.ed)
     gfimp.solve()
     gfloc.set_local(gfimp.Sigma)
 
 
 def dmft_step_adjust(delta, gfimp, gfloc, occupancy_goal):
-    """Perform a DMFT self-consistency step and adjust chemical potential to 
+    """Perform a DMFT self-consistency step and adjust chemical potential to
     target occupation (for both local and impurity green's functions."""
     dmft_step(delta, gfimp, gfloc)
     mu = adjust_mu(gfloc, occupancy_goal)
@@ -367,27 +368,29 @@ def dmft_step_magnetic(delta, gfimp, gfloc, sign, field):
     gfimp.spin_symmetrize()
     gfimp.up.update(gfloc.mu + sign * field - gfloc.ed)
     gfimp.dw.update(gfloc.mu - sign * field - gfloc.ed)
+    # gfimp.up.update(+sign * field - gfloc.ed)
+    # gfimp.dw.update(-sign * field - gfloc.ed)
     gfimp.solve()
     gfloc.set_local(gfimp.Sigma)
 
 
 class DMFT:
     """Base class for DMFT self-consistent loop.
-    
+
     Sub classes can overwrite the methods:
         - initialize
         - step
         - distance
 
     methods must:
-        - initialize 
+        - initialize
             call   : -
             return : initial guess
-        - step 
+        - step
             call   : -
-            return : the current occupation and a new guess for the next iteration. 
-        - distance 
-            call   : __call__ 
+            return : the current occupation and a new guess for the next iteration.
+        - distance
+            call   : __call__
             return : the error w.r.t. the previous iteration
     """
 
@@ -400,6 +403,7 @@ class DMFT:
         tol=1e-3,
         adjust_mu=False,
         alpha=0.0,
+        DC=None,
     ):
         self.gfimp = gfimp
         self.gfloc = gfloc
@@ -411,7 +415,8 @@ class DMFT:
         self.z = 1.0j * wn
         self.delta = None
         self.adjust_mu = adjust_mu
-        self.weights = wn ** -alpha
+        self.weights = wn**-alpha
+        self.DC = DC if DC is not None else np.zeros((len(gfimp), len(gfimp)))
 
     def initialize(self, U, Sigma, mu=None):
         if mu is None:
@@ -430,10 +435,10 @@ class DMFT:
     def step(self, delta):
         if self.adjust_mu:
             dmft_step_adjust(delta, self.gfimp, self.gfloc, self.occupancy_goal)
-            occp = self.gfloc.integrate(self.gfloc.mu)
         else:
             dmft_step(delta, self.gfimp, self.gfloc)
-            occp = self.occupancy_goal
+            # occp = self.occupancy_goal
+        occp = self.gfloc.integrate(self.gfloc.mu)
         delta_new = self.gfloc.Delta(self.z)
         return np.sum(occp), delta_new
 
@@ -441,17 +446,29 @@ class DMFT:
         eps = self.weights * (self(delta) - delta)
         return eps
 
+    def Sigma(self, z):
+        return (
+            -self.DC.diagonal()[:, None]
+            - self.gfloc.mu
+            + self.gfloc.Sigma(z)[self.gfloc.idx_inv]
+        )
+
     def __call__(self, delta):
         print(f"Iteration : {self.it:2}")
+        # print(delta)
         self.delta = delta
         non_causal = delta.imag > 0  # ensures that the imaginary part is negative
         delta[non_causal].imag = -1e-20
-        occp, delta_new = self.step(delta)
-        print(
-            f"Occupation : {occp:.5f} Chemical potential : {self.gfloc.mu:.5f}", end=" "
-        )
+        self.gfloc.occp, delta_new = self.step(delta)
         eps = np.linalg.norm(delta_new - delta)
-        print(f"Error : {eps:.5f}")
+        rel_eps = np.linalg.norm(delta_new - delta) / np.linalg.norm(delta)
+
+        print(
+            f"Occupation : {self.gfloc.occp:.5f} Chemical potential : {self.gfloc.mu:.5f}",
+            end=" ",
+            flush=True,
+        )
+        print(f"Error : {eps:.8f} Relative Error : {rel_eps:.8f}", flush=True)
         if eps < self.tol:
             raise Converged("Converged!")
         self.it += 1
@@ -475,9 +492,9 @@ class DMFT:
         linearmixing(self.distance, delta, iter=iter, alpha=alpha, callback=callback)
 
     def solve(self, delta, mixing_method="broyden", **kwargs):
-        """'linear' or 'broyden' mixing 
+        """'linear' or 'broyden' mixing
         the quantity being mixed is the hybridisation function
-        
+
         """
         if mixing_method == "linear":
             self.solve_with_linear_mixing(delta, **kwargs)
