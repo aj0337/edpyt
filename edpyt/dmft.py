@@ -12,7 +12,36 @@ from edpyt.gf_lanczos import build_gf_lanczos
 from edpyt.integrate_gf import integrate_gf
 
 
-def adjust_mu(gf, occupancy_goal, bracket=(-20.0, 20)):
+def find_smallest_root(func, energy_window, num_points=100, tol=1e-12):
+    emin, emax = energy_window
+    energies = np.linspace(emin, emax, num_points)
+
+    func_values = [func(mu) for mu in energies]
+
+    sign_changes = []
+    for i in range(len(energies) - 1):
+        if np.sign(func_values[i]) != np.sign(func_values[i + 1]):
+            sign_changes.append((energies[i], energies[i + 1]))
+
+    roots = []
+    for bracket in sign_changes:
+        try:
+            result = root_scalar(
+                func, method="brentq", x0=-1, bracket=bracket, xtol=tol
+            )
+            if result.converged:
+                roots.append(result.root)
+        except ValueError:
+            pass
+
+    if roots:
+        smallest_root = min(roots, key=abs)
+        return smallest_root
+    else:
+        raise ValueError("No root found.")
+
+
+def adjust_mu(gf, occupancy_goal, bracket=(-5, 5)):
     """Get the chemical potential to obtain the occupancy goal.
 
     NOTE : The gf is supposed to have the general form
@@ -21,7 +50,10 @@ def adjust_mu(gf, occupancy_goal, bracket=(-20.0, 20)):
     """
     # distance = lambda mu: np.sum(gf.integrate(mu)-occupancy_goal)
     distance = lambda mu: gf.integrate(mu).sum() - occupancy_goal.sum()
-    return root_scalar(distance, bracket=bracket, method="brentq").root  # + gf.mu
+    return find_smallest_root(distance, bracket)
+    # return root_scalar(
+    #     distance, bracket=bracket, method="brentq", x0=0.0
+    # ).root  # + gf.mu
 
 
 class Converged(Exception):
