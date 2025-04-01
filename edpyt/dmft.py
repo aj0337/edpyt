@@ -1,4 +1,5 @@
 from warnings import warn
+import h5py
 
 import numpy as np
 from scipy.optimize import broyden1, linearmixing, root_scalar
@@ -348,7 +349,7 @@ class Gfhilbert(Gfloc):
         return g0
 
 
-def dmft_step(delta, gfimp, gfloc):
+def dmft_step(delta, gfimp: Gfimp, gfloc):
     """Perform a DMFT self-consistency step."""
     gfimp.fit(delta)  # at matsubara frequencies
     gfimp.update(gfloc.mu - gfloc.ed)
@@ -371,8 +372,6 @@ def dmft_step_magnetic(delta, gfimp, gfloc, sign, field):
     print("field", field)
     gfimp.up.update(gfloc.mu + sign * field - gfloc.ed)
     gfimp.dw.update(gfloc.mu - sign * field - gfloc.ed)
-    # gfimp.up.update(+sign * field - gfloc.ed)
-    # gfimp.dw.update(-sign * field - gfloc.ed)
     gfimp.solve()
     gfloc.set_local(gfimp.Sigma)
 
@@ -407,6 +406,7 @@ class DMFT:
         adjust_mu=False,
         alpha=0.0,
         DC=None,
+        iter_filename: str = "dmft_iterations.h5",  # Optional path + file name for storage
     ):
         self.gfimp = gfimp
         self.gfloc = gfloc
@@ -420,6 +420,7 @@ class DMFT:
         self.adjust_mu = adjust_mu
         self.weights = wn**-alpha
         self.DC = DC if DC is not None else np.zeros((len(gfimp), len(gfimp)))
+        self.iter_filename = iter_filename
 
     def initialize(self, U, Sigma, mu=None):
         if mu is None:
@@ -449,16 +450,28 @@ class DMFT:
         eps = self.weights * (self(delta) - delta)
         return eps
 
-    def Sigma(self, z):
-        return (
-            -self.DC.diagonal()[:, None]
-            - self.gfloc.mu
-            + self.gfloc.Sigma(z)[self.gfloc.idx_inv]
-        )
+    def save_iteration_data(self, iter_num):
+        with h5py.File(self.iter_filename, "a") as f:
+            if "all_bath_parameters" not in f:
+                bath_grp = f.create_group("all_bath_parameters")
+            else:
+                bath_grp = f["all_bath_parameters"]
+
+            iter_bath_grp = bath_grp.create_group(f"iteration_{iter_num}")
+
+            for i, gf in enumerate(self.gfimp):
+                iter_bath_grp.create_dataset(f"vk_{i}", data=np.array(gf.Delta.vk))
+                iter_bath_grp.create_dataset(f"ek_{i}", data=np.array(gf.Delta.ek))
+
+    # def Sigma(self, z):
+    #     return (
+    #         -self.DC.diagonal()[:, None]
+    #         - self.gfloc.mu
+    #         + self.gfloc.Sigma(z)[self.gfloc.idx_inv]
+    #     )
 
     def __call__(self, delta):
         print(f"Iteration : {self.it:2}")
-        # print(delta)
         self.delta = delta
         non_causal = delta.imag > 0  # ensures that the imaginary part is negative
         delta[non_causal].imag = -1e-20
@@ -472,6 +485,8 @@ class DMFT:
             flush=True,
         )
         print(f"Error : {eps:.8f} Relative Error : {rel_eps:.8f}", flush=True)
+
+        self.save_iteration_data(self.it)
         if eps < self.tol:
             raise Converged("Converged!")
         self.it += 1
