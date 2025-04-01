@@ -22,7 +22,7 @@ def adjust_mu(gf, occupancy_goal, bracket=(-20, 20)):
     # distance = lambda mu: np.sum(gf.integrate(mu)-occupancy_goal)
     distance = lambda mu: gf.integrate(mu).sum() - occupancy_goal.sum()
     return root_scalar(
-        distance, bracket=bracket, method="brentq", x0=0.0
+        distance, bracket=bracket, method="brentq", x0=0.0, xtol=1e-3, rtol=1e-5
     ).root  # + gf.mu
 
 
@@ -368,6 +368,7 @@ def dmft_step_adjust(delta, gfimp, gfloc, occupancy_goal):
 def dmft_step_magnetic(delta, gfimp, gfloc, sign, field):
     gfimp.up.fit(delta)
     gfimp.spin_symmetrize()
+    print("field", field)
     gfimp.up.update(gfloc.mu + sign * field - gfloc.ed)
     gfimp.dw.update(gfloc.mu - sign * field - gfloc.ed)
     # gfimp.up.update(+sign * field - gfloc.ed)
