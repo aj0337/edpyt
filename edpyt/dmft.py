@@ -405,8 +405,11 @@ class DMFT:
         tol=1e-3,
         adjust_mu=False,
         alpha=0.0,
+        store_last_n=0,
         DC=None,
-        iter_filename: str = "dmft_iterations.h5",  # Optional path + file name for storage
+        egrid=None,
+        bath_filename: str = "bath_iterations.h5",
+        iter_filename: str = "dmft_iterations.h5",
     ):
         self.gfimp = gfimp
         self.gfloc = gfloc
@@ -419,7 +422,10 @@ class DMFT:
         self.delta = None
         self.adjust_mu = adjust_mu
         self.weights = wn**-alpha
+        self.store_last_n = store_last_n
         self.DC = DC if DC is not None else np.zeros((len(gfimp), len(gfimp)))
+        self.egrid = egrid if egrid is not None else np.linspace(-1, 1, 100)
+        self.bath_filename = bath_filename
         self.iter_filename = iter_filename
 
     def initialize(self, U, Sigma, mu=None):
@@ -441,7 +447,6 @@ class DMFT:
             dmft_step_adjust(delta, self.gfimp, self.gfloc, self.occupancy_goal)
         else:
             dmft_step(delta, self.gfimp, self.gfloc)
-            # occp = self.occupancy_goal
         occp = self.gfloc.integrate(self.gfloc.mu)
         delta_new = self.gfloc.Delta(self.z)
         return np.sum(occp), delta_new
@@ -450,8 +455,8 @@ class DMFT:
         eps = self.weights * (self(delta) - delta)
         return eps
 
-    def save_iteration_data(self, iter_num):
-        with h5py.File(self.iter_filename, "a") as f:
+    def save_bath_params(self, iter_num):
+        with h5py.File(self.bath_filename, "a") as f:
             if "all_bath_parameters" not in f:
                 bath_grp = f.create_group("all_bath_parameters")
             else:
@@ -462,6 +467,21 @@ class DMFT:
             for i, gf in enumerate(self.gfimp):
                 iter_bath_grp.create_dataset(f"vk_{i}", data=np.array(gf.Delta.vk))
                 iter_bath_grp.create_dataset(f"ek_{i}", data=np.array(gf.Delta.ek))
+
+    def save_iteration_data(self, iter_num, delta, sigma, gfloc):
+        with h5py.File(self.iter_filename, "a") as f:
+            if "last_n_iterations" not in f:
+                iter_grp = f.create_group("last_n_iterations")
+            else:
+                iter_grp = f["last_n_iterations"]
+            if len(iter_grp.keys()) >= self.store_last_n:
+                oldest_iter = sorted(iter_grp.keys())[0]
+                del iter_grp[oldest_iter]
+
+            grp = iter_grp.create_group(f"iteration_{iter_num}")
+            grp.create_dataset("delta", data=delta)
+            grp.create_dataset("sigma", data=sigma)
+            grp.create_dataset("gfloc", data=gfloc)
 
     # def Sigma(self, z):
     #     return (
@@ -486,7 +506,11 @@ class DMFT:
         )
         print(f"Error : {eps:.8f} Relative Error : {rel_eps:.8f}", flush=True)
 
-        self.save_iteration_data(self.it)
+        self.save_bath_params(self.it)
+        sigma = self.gfimp.Sigma(self.egrid)
+        gfloc = self.gfloc(self.egrid)
+        self.save_iteration_data(self.it, delta.copy(), sigma.copy(), gfloc.copy())
+
         if eps < self.tol:
             raise Converged("Converged!")
         self.it += 1
