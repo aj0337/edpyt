@@ -513,7 +513,7 @@ class DMFT:
             gfloc = self.gfloc(self.egrid)
             self.save_iteration_data(self.it, delta.copy(), sigma.copy(), gfloc.copy())
 
-        if eps < self.tol:
+        if rel_eps < self.tol:
             raise Converged("Converged!")
         self.it += 1
         if self.it > self.max_iter:
