@@ -369,7 +369,6 @@ def dmft_step_adjust(delta, gfimp, gfloc, occupancy_goal):
 def dmft_step_magnetic(delta, gfimp, gfloc, sign, field):
     gfimp.up.fit(delta)
     gfimp.spin_symmetrize()
-    print("field", field)
     gfimp.up.update(gfloc.mu + sign * field - gfloc.ed)
     gfimp.dw.update(gfloc.mu - sign * field - gfloc.ed)
     gfimp.solve()
@@ -408,6 +407,7 @@ class DMFT:
         store_last_n=0,
         DC=None,
         egrid=None,
+        store_iterations=False,
         bath_filename: str = "bath_iterations.h5",
         iter_filename: str = "dmft_iterations.h5",
     ):
@@ -425,6 +425,7 @@ class DMFT:
         self.store_last_n = store_last_n
         self.DC = DC if DC is not None else np.zeros((len(gfimp), len(gfimp)))
         self.egrid = egrid if egrid is not None else np.linspace(-1, 1, 100)
+        self.store_iterations = store_iterations
         self.bath_filename = bath_filename
         self.iter_filename = iter_filename
 
@@ -506,10 +507,11 @@ class DMFT:
         )
         print(f"Error : {eps:.8f} Relative Error : {rel_eps:.8f}", flush=True)
 
-        self.save_bath_params(self.it)
-        sigma = self.gfimp.Sigma(self.egrid)
-        gfloc = self.gfloc(self.egrid)
-        self.save_iteration_data(self.it, delta.copy(), sigma.copy(), gfloc.copy())
+        if self.store_iterations:
+            self.save_bath_params(self.it)
+            sigma = self.gfimp.Sigma(self.egrid)
+            gfloc = self.gfloc(self.egrid)
+            self.save_iteration_data(self.it, delta.copy(), sigma.copy(), gfloc.copy())
 
         if eps < self.tol:
             raise Converged("Converged!")
