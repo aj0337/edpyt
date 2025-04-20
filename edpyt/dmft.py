@@ -23,7 +23,7 @@ def adjust_mu(gf, occupancy_goal, bracket=(-20, 20)):
     # distance = lambda mu: np.sum(gf.integrate(mu)-occupancy_goal)
     distance = lambda mu: gf.integrate(mu).sum() - occupancy_goal.sum()
     return root_scalar(
-        distance, bracket=bracket, method="brentq", x0=0.0, xtol=1e-3, rtol=1e-5
+        distance, bracket=bracket, method="brentq", x0=0.0, xtol=1e-6, rtol=1e-9
     ).root  # + gf.mu
 
 
